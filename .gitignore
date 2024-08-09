@@ -1,0 +1,6 @@
+aux.out
+tests/*
+obj/*
+imgs/*
+gen
+sa.cpp
