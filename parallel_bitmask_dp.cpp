@@ -49,7 +49,6 @@ vector<vector<int>> compute_comb(int N) {
 vector<int> dp;
 vector<vector<int>> memo;
 vector<vector<int>> comb;
-vector<int> T;
 vector<vector<int>> c;
 
 int search_upper_bound(int N, int layer, int add) {
@@ -73,7 +72,6 @@ void compute_layer_range_dp(int N, int layer, int a, int b) {
                 int curr_cost = dp[conf ^ (1 << i)] + memo[i][conf ^ (1 << i)];
                 if(dp[conf] > curr_cost) {
                     dp[conf] = curr_cost;
-                    T[conf] = conf ^ (1 << i);
                 }
             }
         }
@@ -96,7 +94,6 @@ int main() {
     c = compute_cost_matrix(G);
 
     dp.resize(1 << N);
-    T.resize(1 << N);
 
     compute_memo(N, memo, c);
     comb = compute_comb(N);
@@ -119,9 +116,20 @@ int main() {
         }
     }
     vector <int> ans;
-    for(int conf = (1 << N) - 1; conf; conf = T[conf]) {
-        int node = __builtin_ctz(conf ^ T[conf]);
+    for(int conf = (1 << N) - 1; conf;) {
+        int node = -1;
+        for(int i = 0; i < N; i++) {
+            if(conf & (1 << i)) {
+                if(node == -1) {
+                    node = i;
+                }
+                if(dp[conf ^ (1 << i)] + memo[i][conf ^ (1 << i)] < dp[conf ^ (1 << node)] + memo[node][conf ^ (1 << node)]) {
+                    node = i;
+                }
+            }   
+        }
         ans.push_back(node);
+        conf ^= (1 << node);
     }
     reverse(ans.begin(), ans.end());
     for(auto it : ans) {

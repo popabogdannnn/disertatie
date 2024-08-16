@@ -18,7 +18,6 @@ int main() {
         vector<vector<int>>(1 << second_half, vector<int>(N, -1)),
     };
 
-    vector<int> T;
     vector<int> dp;
 
     while(E--) {
@@ -30,7 +29,6 @@ int main() {
     vector<vector<int>> c = compute_cost_matrix(G);
 
     dp.resize(1 << N);
-    T.resize(1 << N);
 
     auto compute_memo = [](vector<vector<int>> &memo, int delta, int size, int N, vector<vector<int>> &c) {
         fill(memo[0].begin(), memo[0].end(), 0);
@@ -45,25 +43,40 @@ int main() {
     compute_memo(memo[0], 0, first_half, N, c);
     compute_memo(memo[1], first_half, second_half, N, c);
 
+    auto F = [&](int conf, int i) {
+        int curr_cost = dp[conf ^ (1 << i)] 
+            + memo[0][(conf ^ (1 << i)) & ((1 << first_half) - 1)][i]
+            + memo[1][(conf ^ (1 << i)) >> first_half][i];
+        return curr_cost;
+    };
+
     for(int conf = 1; conf < (1 << N); conf++) {
         dp[conf] = INF;
         for(int i = 0; i < N; i++) {
             if(conf & (1 << i)) {
-                int curr_cost = dp[conf ^ (1 << i)] 
-                    + memo[0][(conf ^ (1 << i)) & ((1 << first_half) - 1)][i]
-                    + memo[1][(conf ^ (1 << i)) >> first_half][i];
+                int curr_cost = F(conf, i);
                 if(dp[conf] > curr_cost) {
                     dp[conf] = curr_cost;
-                    T[conf] = conf ^ (1 << i);
                 }
             }
         }
     }
 
     vector <int> ans;
-    for(int conf = (1 << N) - 1; conf; conf = T[conf]) {
-        int node = __builtin_ctz(conf ^ T[conf]);
+    for(int conf = (1 << N) - 1; conf;) {
+        int node = -1;
+        for(int i = 0; i < N; i++) {
+            if(conf & (1 << i)) {
+                if(node == -1) {
+                    node = i;
+                }
+                if(F(conf, i) < F(conf, node)) {
+                    node = i;
+                }
+            }   
+        }
         ans.push_back(node);
+        conf ^= (1 << node);
     }
     reverse(ans.begin(), ans.end());
     for(auto it : ans) {

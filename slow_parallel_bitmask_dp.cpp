@@ -3,7 +3,6 @@
 #include "cost_matrix.h"
 #include <thread>
 #include <future>
-#include <cassert>
 
 using namespace std;
 
@@ -11,39 +10,6 @@ using i64 = int64_t;
 
 const int INF = INT_MAX / 2;
 const int PROCESSORS = thread::hardware_concurrency();
-
-vector<int> compute_node_memo(int node, int size, int delta, const vector<vector<int>> &c) {
-    vector<int> memo(1 << size);
-    for(int conf = 1; conf < (1 << size); conf++) {
-        int p = __builtin_ctz(conf);
-        memo[conf] = memo[conf ^ (1 << p)] + c[delta + p][node];
-    }
-    return memo;
-}
-
-void compute_memo(int N, vector<vector<vector<int>>> &memo, vector<vector<int>> &c) {
-    memo.resize(2);
-    memo[0].resize(N);
-    memo[1].resize(N);
-    int first_half = N / 2, second_half = N - N / 2;
-    vector<future<vector<int>>> threads(PROCESSORS);
-    
-    for(int i = 0; i < N; i += PROCESSORS) {
-        for(int j = 0; i + j < N && j < PROCESSORS; j++) {
-            threads[j] = async(launch::async, compute_node_memo, i + j, first_half, 0, c);
-        }
-        for(int j = 0; i + j < N && j < PROCESSORS; j++) {
-            memo[0][i + j] = threads[j].get();
-        }
-
-        for(int j = 0; i + j < N && j < PROCESSORS; j++) {
-            threads[j] = async(launch::async, compute_node_memo, i + j, second_half, first_half, c);
-        }
-        for(int j = 0; i + j < N && j < PROCESSORS; j++) {
-            memo[1][i + j] = threads[j].get();
-        }
-    }
-}
 
 vector<vector<int>> compute_comb(int N) {
     vector<vector<int>> comb(N + 5);
@@ -58,7 +24,6 @@ vector<vector<int>> compute_comb(int N) {
 }
 
 vector<int> dp;
-vector<vector<vector<int>>> memo;
 vector<vector<int>> comb;
 vector<vector<int>> c;
 
@@ -74,16 +39,23 @@ int search_upper_bound(int N, int layer, int add) {
     return ret;
 }
 
+int add_to_conf(int node, int conf, int N) {
+    int ret = 0;
+    for(int i = 0; i < N; i++) {
+        if(conf & (1 << i)) {
+            ret += c[i][node];
+        }
+    }
+    return ret;
+}
+
 void compute_layer_range_dp(int N, int layer, int a, int b) {
-    int first_half = N / 2, second_half = N - N / 2;
     for(int i = a; i <= b; i++) {
         int conf = search_upper_bound(N, layer, i);
         dp[conf] = INF;
         for(int i = 0; i < N; i++) {
             if(conf & (1 << i)) {
-                int curr_cost = dp[conf ^ (1 << i)] 
-                    + memo[0][i][(conf ^ (1 << i)) & ((1 << first_half) - 1)]
-                    + memo[1][i][(conf ^ (1 << i)) >> first_half];
+                int curr_cost = dp[conf ^ (1 << i)] + add_to_conf(i, conf ^ (1 << i), N);
                 if(dp[conf] > curr_cost) {
                     dp[conf] = curr_cost;
                 }
@@ -109,9 +81,7 @@ int main() {
 
     dp.resize(1 << N);
 
-    compute_memo(N, memo, c);
     comb = compute_comb(N);
-    
 
     for(int layer = 1; layer <= N; layer++) {
         vector<i64> work(PROCESSORS);
@@ -125,22 +95,10 @@ int main() {
             threads[i] = thread(compute_layer_range_dp, N, layer, last + 1, add);
             last = add;
         }
-
         for(int i = 0; i < PROCESSORS; i++) {
             threads[i].join();
         }
     }
-   
-
-    int first_half = N / 2;
-    auto F = [&](int conf, int i) {
-        int curr_cost = dp[conf ^ (1 << i)] 
-            + memo[0][i][(conf ^ (1 << i)) & ((1 << first_half) - 1)]
-            + memo[1][i][(conf ^ (1 << i)) >> first_half];
-        return curr_cost;
-    };
-
-    
     vector <int> ans;
     for(int conf = (1 << N) - 1; conf;) {
         int node = -1;
@@ -149,7 +107,7 @@ int main() {
                 if(node == -1) {
                     node = i;
                 }
-                if(F(conf, i) < F(conf, node)) {
+                if(dp[conf ^ (1 << i)] + add_to_conf(i, conf ^ (1 << i), N) < dp[conf ^ (1 << node)] + add_to_conf(node, conf ^ (1 << node), N)) {
                     node = i;
                 }
             }   

@@ -22,7 +22,6 @@ int main() {
     cin >> M >> N >> E;
 
     vector<vector<int>> G(N);
-    vector<int> T;
     vector<int> dp;
 
     while(E--) {
@@ -30,11 +29,10 @@ int main() {
         cin >> x >> y;
         G[y].push_back(x);
     }
-
+ 
     vector<vector<int>> c = compute_cost_matrix(G);
 
     dp.resize(1 << N);
-    T.resize(1 << N);
 
     for(int conf = 1; conf < (1 << N); conf++) {
         dp[conf] = INF;
@@ -43,16 +41,26 @@ int main() {
                 int curr_cost = dp[conf ^ (1 << i)] + add_to_conf(c, i, conf ^ (1 << i), N);
                 if(dp[conf] > curr_cost) {
                     dp[conf] = curr_cost;
-                    T[conf] = conf ^ (1 << i);
                 }
             }
         }
     }
 
     vector <int> ans;
-    for(int conf = (1 << N) - 1; conf; conf = T[conf]) {
-        int node = __builtin_ctz(conf ^ T[conf]);
+    for(int conf = (1 << N) - 1; conf;) {
+        int node = -1;
+        for(int i = 0; i < N; i++) {
+            if(conf & (1 << i)) {
+                if(node == -1) {
+                    node = i;
+                }
+                if(dp[conf ^ (1 << i)] + add_to_conf(c, i, conf ^ (1 << i), N) < dp[conf ^ (1 << node)] + add_to_conf(c, node, conf ^ (1 << node), N)) {
+                    node = i;
+                }
+            }   
+        }
         ans.push_back(node);
+        conf ^= (1 << node);
     }
     reverse(ans.begin(), ans.end());
     for(auto it : ans) {
