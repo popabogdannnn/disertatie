@@ -94,9 +94,9 @@ int main() {
     c = compute_cost_matrix(G);
 
     dp.resize(1 << N);
-
-    compute_memo(N, memo, c);
     comb = compute_comb(N);
+    
+    compute_memo(N, memo, c);
 
     for(int layer = 1; layer <= N; layer++) {
         vector<i64> work(PROCESSORS);
