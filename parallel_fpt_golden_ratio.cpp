@@ -1,11 +1,16 @@
 #include "cost_matrix.h"
+#include <condition_variable>
 #include <iostream>
 #include <cassert>
 #include <bitset>
+#include <thread>
+#include <mutex>
+#include <stack>
 
 using namespace std;
 
 const int INF = 2e9;
+const int PROCESSORS = thread::hardware_concurrency();
 
 vector<vector<int>> c;
 
@@ -73,33 +78,82 @@ struct Instance {
 };
 
 Instance sol;
-int states = 0;
+mutex sol_mutex;
+struct search_call {
+    Instance I;
+    int K;
+    int state;
+};
 
-void search(Instance I, int K) {
-    if(sol.crossings == 0) {
-        return;
-    }
-    
-    if(I.crossings > K || I.crossings >= sol.crossings) {
-        return;
-    }
 
-    pair<int, int> p = I.find_choice();
-    
-    if(p.first == -1) {
-        if(sol.crossings > I.crossings) {
-            sol = I;
+void search(Instance I, int K, int state);
+
+class ThreadPool { 
+public: 
+    void start() {
+        threads.clear();
+        threads.resize(PROCESSORS);
+        for (int i = 0; i < PROCESSORS; i++) { 
+            threads[i] = thread([this] { 
+                while (true) {
+                    search_call task;
+                    {                    
+                        unique_lock<mutex> lock(stack_mutex); 
+
+                        cv.wait(lock, [this] { 
+                            return !S.empty() || working == 0; 
+                        }); 
+
+                        if (working == 0 && S.empty()) { 
+                            return; 
+                        }
+
+                        task = S.top(); 
+                        
+                        if(S.top().state == 0) {
+                            S.top().state = 1;
+                        }
+                        else {
+                            S.pop();
+                        }
+                        working++;
+                    }
+                    search(task.I, task.K, task.state); 
+                    {
+                        unique_lock<mutex> lock(stack_mutex);
+                        working--;
+                    }
+                } 
+            }); 
         }
-        return;
     }
 
-    if(c[p.first][p.second] > c[p.second][p.first]) {
-        swap(p.first, p.second);
+    void wait() {
+        for(int i = 0; i < PROCESSORS; i++) {
+            threads[i].join();
+        }
     }
-
-    search(I.commit(p.first, p.second), K);
-    search(I.commit(p.second, p.first), K);
-}
+  
+    void enqueue(search_call call) 
+    { 
+        { 
+            unique_lock<mutex> lock(stack_mutex); 
+            S.emplace(move(call)); 
+        } 
+        cv.notify_one(); 
+    } 
+  
+private: 
+    
+    vector<thread> threads; 
+  
+    stack<search_call> S; 
+    condition_variable cv;
+  
+    mutex stack_mutex; 
+    int working = 0;
+}; 
+ThreadPool thread_pool;
 
 vector<int> solve(int K, int N, Instance I) {
     if(K < 0) {
@@ -107,7 +161,10 @@ vector<int> solve(int K, int N, Instance I) {
     }
     
     sol.crossings = 2e9;
-    search(I, K);
+
+    thread_pool.enqueue({I, K, 0});
+    thread_pool.start();
+    thread_pool.wait();
 
     if(sol.crossings == 2e9) {
         return vector<int>();
@@ -158,4 +215,34 @@ int main() {
         cout << i + M + 1 << "\n";
     }
     return 0;
+}
+
+void search(Instance I, int K, int state) {
+    {
+        if(I.crossings > K || I.crossings >= sol.crossings) {
+            return;
+        }
+    }
+
+    pair<int, int> p = I.find_choice();
+    
+    if(p.first == -1) {
+        unique_lock<mutex> lock(sol_mutex);
+        if(sol.crossings > I.crossings) {
+            sol = I;
+        }
+        return;
+    }
+
+    if(c[p.first][p.second] > c[p.second][p.first]) {
+        swap(p.first, p.second);
+    }
+
+    if(state == 0) {
+        thread_pool.enqueue({move(I.commit(p.first, p.second)), K, 0});
+    } 
+    else {
+        thread_pool.enqueue({move(I.commit(p.second, p.first)), K, 0});
+    }   
+
 }
