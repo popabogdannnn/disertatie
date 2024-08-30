@@ -2,6 +2,7 @@
     "files.associations": {
         "ostream": "cpp",
         "future": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "condition_variable": "cpp"
     }
 }

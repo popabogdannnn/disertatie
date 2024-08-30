@@ -4,3 +4,4 @@ obj/*
 imgs/*
 gen
 sa.cpp
+*.out

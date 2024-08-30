@@ -6,16 +6,38 @@
 using namespace std;
 
 const int INF = 2e9;
+const int N_MAX = 17000;
+using u64 = uint_fast64_t;
 
 vector<vector<int>> c;
+struct DynamicBitset {
+    vector<u64> data;
+    DynamicBitset() = default;
+    DynamicBitset(int N): data(N / 64 + (N % 64 > 0), 0) {}
+    
+    int operator[](int pos) {
+        return (data[pos / 64] >> (pos % 64)) & 1; 
+    }
+
+    void operator|=(const DynamicBitset &oth) {
+        for(int i = 0; i < oth.data.size() && i < data.size(); i++) {
+            data[i] |= oth.data[i];
+        }
+    }
+
+    void set(int pos) {
+        data[pos / 64] |= (1ll << (pos % 64));
+    }
+};
 
 struct Instance {
     int N;
     vector<vector<bool>> D;
     int crossings;
+    int depth;
 
     Instance() = default;
-    Instance(int _N): N(_N), D(_N, vector<bool>(_N, false)), crossings(0) {
+    Instance(int _N): N(_N), D(_N, vector<bool>(_N, false)), crossings(0), depth(0) {
         for(int i = 0; i < N; i++) {
             D[i][i] = true;
         }
@@ -44,7 +66,35 @@ struct Instance {
                 }
             }
         }
+        ret.depth++;
         return ret;
+    }
+
+    void transitive_closure() {
+        auto srt = top_sort();
+        vector <DynamicBitset> b(N, DynamicBitset(N));
+        for(int i = 0; i < srt.size(); i++) {
+            for(int j = 0; j < i; j++) {
+                if(D[srt[i]][srt[j]]) {
+                    crossings = INF;
+                    return;
+                }
+            }
+        }
+        for(int i = srt.size() - 1; i >= 0; i--) {
+            for(int j = i + 1; j < srt.size(); j++) {
+                if(D[srt[i]][srt[j]]) {
+                    b[i] |= b[j];
+                    b[i].set(srt[j]);
+                }
+            }
+            for(int j = 0; j < N; j++) {
+                if(D[srt[i]][j] == false && b[i][j]) {
+                    crossings += c[srt[i]][j];
+                    D[srt[i]][j] = true;
+                }
+            }
+        }
     }
 
     vector<int> top_sort() {
@@ -96,7 +146,6 @@ void search(Instance I, int K) {
     if(c[p.first][p.second] > c[p.second][p.first]) {
         swap(p.first, p.second);
     }
-
     search(I.commit(p.first, p.second), K);
     search(I.commit(p.second, p.first), K);
 }
@@ -107,6 +156,20 @@ vector<int> solve(int K, int N, Instance I) {
     }
     
     sol.crossings = 2e9;
+
+    for(int i = 0; i < N; i++) {
+        for(int j = 0; j < N; j++) {
+            if(i != j) {
+                if(c[i][j] > K) {
+                    I.D[j][i] = true;
+                }
+            }
+            
+        }
+    }
+
+    I.transitive_closure();
+
     search(I, K);
 
     if(sol.crossings == 2e9) {
