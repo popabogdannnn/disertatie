@@ -5,13 +5,44 @@
 #include <map>
 #include <algorithm>
 #include <set>
+#include <thread>
 
 using namespace std;
 
+const int PROCESSORS = thread::hardware_concurrency();
 const int INF = 2e9;
 const int DP_MAX = 30;
 vector <int> dp;
+vector <vector<int>> comb;
+ vector<vector<int>> memo[] = {
+    vector<vector<int>>(DP_MAX, vector<int>(1 << (DP_MAX / 2), 0)),
+    vector<vector<int>>(DP_MAX, vector<int>(1 << (DP_MAX / 2), 0))
+};
 
+vector<vector<int>> compute_comb(int N) {
+    vector<vector<int>> comb(N + 5);
+    for(int i = 0; i <= N; i++) {
+        comb[i].resize(N + 5);
+        comb[i][0] = 1;
+        for(int j = 1; j <= i; j++) {
+            comb[i][j] = comb[i - 1][j] + comb[i - 1][j - 1];
+        }
+    }
+    return comb;
+}
+
+
+int search_upper_bound(int N, int layer, int add) {
+    int ret = 0;
+    for(int bit = N - 1; bit >= 0 && layer > 0; bit--) {
+        if(comb[bit][layer] < add) {
+            add -= comb[bit][layer];
+            layer--;
+            ret += 1 << bit;
+        }
+    }
+    return ret;
+}
 
 vector<pair<int, int>> compute_I(int N, vector<vector<int>>&G) {
     vector<pair<int, int>> I(N);
@@ -60,6 +91,24 @@ vector <pair<int, int>> compute_J(int N, int M, vector<vector<int>>&G) {
     return J;
 }
 
+void compute_layer_range_dp(int N, int layer, int a, int b) {
+    int first_half = N / 2, second_half = N - N / 2;
+    for(int i = a; i <= b; i++) {
+        int conf = search_upper_bound(N, layer, i);
+        dp[conf] = INF;
+        for(int i = 0; i < N; i++) {
+            if(conf & (1 << i)) {
+                int curr_cost = dp[conf ^ (1 << i)] 
+                    + memo[0][i][(conf ^ (1 << i)) & ((1 << first_half) - 1)]
+                    + memo[1][i][(conf ^ (1 << i)) >> first_half];
+                if(dp[conf] > curr_cost) {
+                    dp[conf] = curr_cost;
+                }
+            }
+        }
+    }
+}
+
 vector <int> compute_dp(set<int>active, vector<vector<int>>&c, vector<int>&clt, int until) {
     vector<int> nodes(active.begin(), active.end());
     int N = nodes.size();
@@ -67,17 +116,16 @@ vector <int> compute_dp(set<int>active, vector<vector<int>>&c, vector<int>&clt, 
     dp.resize(1 << N);
 
     int first_half = N / 2, second_half = N - N / 2;
-    vector<vector<int>> memo[] = {
-        vector<vector<int>>(1 << first_half, vector<int>(N, -1)),
-        vector<vector<int>>(1 << second_half, vector<int>(N, -1)),
-    };
-
+    for(int i = 0; i < N; i++) {
+        memo[0][i][0] = clt[nodes[i]];
+    }
+    
     auto compute_memo = [](vector<vector<int>> &memo, int delta, int size, int N, vector<vector<int>> &c, vector<int>&nodes) {
         fill(memo[0].begin(), memo[0].end(), 0);
         for(int conf = 1; conf < (1 << size); conf++) {
             for(int i = 0; i < N; i++) {
                 int p = __builtin_ctz(conf);
-                memo[conf][i] = memo[conf ^ (1 << p)][i] + c[nodes[delta + p]][nodes[i]];
+                memo[i][conf] = memo[i][conf ^ (1 << p)] + c[nodes[delta + p]][nodes[i]];
             }
         }
     };
@@ -87,22 +135,27 @@ vector <int> compute_dp(set<int>active, vector<vector<int>>&c, vector<int>&clt, 
 
     auto F = [&](int conf, int i) {
         int curr_cost = dp[conf ^ (1 << i)] 
-            + memo[0][(conf ^ (1 << i)) & ((1 << first_half) - 1)][i]
-            + memo[1][(conf ^ (1 << i)) >> first_half][i]
-            + clt[nodes[i]];
+            + memo[0][i][(conf ^ (1 << i)) & ((1 << first_half) - 1)]
+            + memo[1][i][(conf ^ (1 << i)) >> first_half];
         return curr_cost;
     };
 
     dp[0] = 0;
-    for(int conf = 1; conf < (1 << N); conf++) {
-        dp[conf] = INF;
-        for(int i = 0; i < N; i++) {
-            if(conf & (1 << i)) {
-                int curr_cost = F(conf, i);
-                if(dp[conf] > curr_cost) {
-                    dp[conf] = curr_cost;
-                }
-            }
+    for(int layer = 1; layer <= N; layer++) {
+        vector<int> work(PROCESSORS);
+        for(int i = 0; i < PROCESSORS; i++) {
+            work[i] = comb[N][layer] / PROCESSORS + (i < comb[N][layer] % PROCESSORS);
+        }
+        vector<thread> threads(PROCESSORS);
+        int add = 0, last = 0;
+        for(int i = 0; i < PROCESSORS; i++) {
+            add += work[i];
+            threads[i] = thread(compute_layer_range_dp, N, layer, last + 1, add);
+            last = add;
+        }
+
+        for(int i = 0; i < PROCESSORS; i++) {
+            threads[i].join();
         }
     }
 
@@ -125,7 +178,6 @@ vector <int> compute_dp(set<int>active, vector<vector<int>>&c, vector<int>&clt, 
             break;
         }
     }
-
     return ans;
 }
 
@@ -158,6 +210,7 @@ vector<int> solve(int K, int N, int M, int E, vector<vector<int>>&G, vector<vect
     set <int> active;
  
     for(int i = 2 * N; i >= 1; i--) {
+        
         if(event[i].second == -1) {
             active.insert(event[i].first);
             for(int j = 0; j < N; j++) {
@@ -181,6 +234,9 @@ int main() {
     cin >> M >> N >> E;
     vector<int> x;
     vector<vector<int>> G(N);
+
+    comb = compute_comb(DP_MAX + 5);
+
     while(E--) {
         int x, y;
         cin >> x >> y;

@@ -3,6 +3,7 @@
         "ostream": "cpp",
         "future": "cpp",
         "iostream": "cpp",
-        "condition_variable": "cpp"
+        "condition_variable": "cpp",
+        "vector": "cpp"
     }
 }

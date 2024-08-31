@@ -19,7 +19,8 @@ def filter_small_exact():
 
 def filter_fpt():
     for file in glob.glob("tests/exact_tests/*"):
-        s = os.system(f"./parse_input.py < {file} | ./obj/fpt_subexpo > aux.out")
+        s = os.system(f"./parse_input.py < {file} | ./obj/parallel_fpt_subexpo > aux.out")
+        print(f"{file} done")
         if(s == 0):
             os.system(f"cp {file} tests/fpt_subexpo_tests/")
 
