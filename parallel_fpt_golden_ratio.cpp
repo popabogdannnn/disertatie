@@ -148,49 +148,22 @@ public:
         for (int i = 0; i < PROCESSORS; i++) { 
             threads[i] = thread([this, i] { 
                 while (true) {
-                    // cout << "Thread " << i << " spinlocking" << endl;
+                   
                     search_call task;
                     {                    
                         unique_lock<mutex> lock(stack_mutex); 
-                        // unique_lock<mutex> working_lock(working_mutex);
-                        // cout << "Thread " << i << " got the lock in getting task" << endl;
-
-
-                        if (S.empty() && working > 0){
-                            continue;
-                        }
-                        cv.wait(lock, [this] { 
-                            return !S.empty() || working == 0; 
-                        }); 
-
-                        {
-                            // unique_lock<mutex> working_lock(working_mutex);
-                            if (working == 0 && S.empty()) { 
-                                // cout << "Thread " << i << " stopped" << endl;
-                                return; 
-                            }
+                     
+                            return;
                         }
 
                         task = S.top(); 
                         S.pop();
-                        {
-                            unique_lock<mutex> working_lock(working_mutex);
-                            working++;
-                        }
-                        // working.fetch_add(1, memory_order_seq_cst);
+                        
                     }
-                    // cout << "Thread " << i << " runs something" << endl;
+                  
                     search_sol(task.I, task.K); 
-                    // cout << "Thread " << i << " finished running something" << endl;
+                  
 
-                    {
-                        // unique_lock<mutex> lock(stack_mutex);
-                        unique_lock<mutex> working_lock(working_mutex);
-                        working--;
-                        // working.fetch_add(-1, memory_order_seq_cst);
-                    }
-
-                    // cout << "Thread " << i << " updated working" << endl;
                 } 
             }); 
         }
