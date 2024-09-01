@@ -12,12 +12,10 @@
 using namespace std;
 
 const int INF = 2e9;
-const int PROCESSORS = thread::hardware_concurrency();
+const int PROCESSORS = 8;
 const int N_MAX = 17000;
 using u64 = uint_fast64_t;
-
 mutex sol_mutex;
-
 vector<vector<int>> c;
 struct DynamicBitset {
     vector<u64> data;
@@ -63,19 +61,19 @@ struct Instance {
         return make_pair(-1, -1);
     }
 
-    Instance commit(int a, int b) {
-        Instance ret = *this;
-        ret.D[a][b] = true;
-        ret.crossings += c[a][b];
+    Instance *commit(int a, int b) {
+        Instance *ret = new Instance(*this);
+        ret->D[a][b] = true;
+        ret->crossings += c[a][b];
         for(int i = 0; i < N; i++) {
             for(int j = 0; j < N; j++) {
-                if(ret.D[i][a] && ret.D[b][j] && ret.D[i][j] == false) {
-                    ret.D[i][j] = true;
-                    ret.crossings += c[i][j];
+                if(ret->D[i][a] && ret->D[b][j] && ret->D[i][j] == false) {
+                    ret->D[i][j] = true;
+                    ret->crossings += c[i][j];
                 }
             }
         }
-        ret.depth++;
+        ret->depth++;
         return ret;
     }
 
@@ -133,10 +131,10 @@ struct Instance {
 
 Instance sol;
 int states = 0;
-void search_sol(Instance, int);
+void search_sol(Instance*, int);
 
 struct search_call {
-    Instance I;
+    Instance *I;
     int K;
 };
 
@@ -148,21 +146,30 @@ public:
         for (int i = 0; i < PROCESSORS; i++) { 
             threads[i] = thread([this, i] { 
                 while (true) {
-                   
                     search_call task;
                     {                    
                         unique_lock<mutex> lock(stack_mutex); 
-                     
+                        cv.wait(lock, [this] { 
+                            return !S.empty() || working == 0; 
+                        }); 
+    
+                        if (working == 0 && S.empty()) { 
+                            return; 
+                        }
+                        task = move(S.top()); 
+                        S.pop();
+                        working++;
+                    }
+                    search_sol(task.I, task.K);
+                    delete task.I;
+                    {
+                        unique_lock<mutex> working_lock(stack_mutex);
+                        working--;
+                        if(S.empty() && working == 0) {
+                            cv.notify_all();
                             return;
                         }
-
-                        task = S.top(); 
-                        S.pop();
-                        
                     }
-                  
-                    search_sol(task.I, task.K); 
-                  
 
                 } 
             }); 
@@ -171,18 +178,15 @@ public:
 
     void wait() {
         for(int i = 0; i < PROCESSORS; i++) {
-            // cout << "waiting for thread " << i << endl;
             threads[i].join();
         }
     }
   
-    void enqueue(search_call&& call) 
+    void enqueue(search_call call) 
     { 
         { 
             unique_lock<mutex> lock(stack_mutex);
-            // unique_lock<mutex> working_lock(working_mutex);
-
-            S.emplace(move(call)); 
+            S.emplace(call); 
         } 
         cv.notify_one(); 
     } 
@@ -195,7 +199,6 @@ private:
     condition_variable cv;
   
     mutex stack_mutex; 
-    mutex working_mutex;
     int working = 0;
 }; 
 ThreadPool thread_pool;
@@ -217,9 +220,9 @@ vector<int> solve(int K, int N, Instance I) {
             
         }
     }
-
-    I.transitive_closure();
-    thread_pool.enqueue({I, K});
+    Instance *c_i = new Instance(I);
+    c_i->transitive_closure();
+    thread_pool.enqueue({c_i, K});
     thread_pool.start();
     thread_pool.wait();
 
@@ -274,21 +277,22 @@ int main() {
     return 0;
 }
 
-void search_sol(Instance I, int K) {
+void search_sol(Instance *I, int K) {
+    //cerr << this_thread::get_id() << "\n";
     if(sol.crossings == 0) {
         return;
     }
     
-    if(I.crossings > K || I.crossings >= sol.crossings) {
+    if(I->crossings > K || I->crossings >= sol.crossings) {
         return;
     }
 
-    pair<int, int> p = I.find_choice();
+    pair<int, int> p = I->find_choice();
     
     if(p.first == -1) {
         unique_lock<mutex> lock(sol_mutex);
-        if(sol.crossings > I.crossings) {
-            sol = I;
+        if(sol.crossings > I->crossings) {
+            sol = *I;
         }
         return;
     }
@@ -296,6 +300,6 @@ void search_sol(Instance I, int K) {
     if(c[p.first][p.second] > c[p.second][p.first]) {
         swap(p.first, p.second);
     }
-    thread_pool.enqueue({I.commit(p.first, p.second), K});
-    thread_pool.enqueue({I.commit(p.second, p.first), K});
+    thread_pool.enqueue(search_call{I->commit(p.second, p.first), K});
+    thread_pool.enqueue(search_call{I->commit(p.first, p.second), K});
 }
