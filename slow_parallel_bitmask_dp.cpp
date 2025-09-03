@@ -9,7 +9,7 @@ using namespace std;
 using i64 = int64_t;
 
 const int INF = INT_MAX / 2;
-const int PROCESSORS = thread::hardware_concurrency();
+int PROCESSORS;
 
 vector<vector<int>> compute_comb(int N) {
     vector<vector<int>> comb(N + 5);
@@ -64,7 +64,8 @@ void compute_layer_range_dp(int N, int layer, int a, int b) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    PROCESSORS = atoi(argv[1]);
     int M, N, E;
     
     cin >> M >> N >> E;

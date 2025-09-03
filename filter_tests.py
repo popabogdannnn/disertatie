@@ -27,13 +27,15 @@ def filter_fpt():
 
 
 def filter_golden_ratio():
-    mins = 5
+    mins = 10
     for file in glob.glob("tests/exact_tests/*"):
         start_time = time.time()
-        os.system(f"./parse_input.py < {file} | timeout {mins}m ./obj/fpt_golden_ratio > aux.out")
+        os.system(f"./parse_input.py < {file} | timeout {mins}m ./obj/parallel_fpt_golden_ratio > aux.out")
         end_time = time.time()
         
-        print(f"{file} done")
-        if(start_time - end_time <= mins * 60):
+        print(f"{file} done, Execution time: {end_time - start_time}")
+        if(end_time - start_time <= mins * 60 - 1):
             os.system(f"cp {file} tests/fpt_golden_ratio_tests/")
+            print("Copied!")
+        print("<--->")
 filter_golden_ratio()

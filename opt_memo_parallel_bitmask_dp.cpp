@@ -10,7 +10,7 @@ using namespace std;
 using i64 = int64_t;
 
 const int INF = INT_MAX / 2;
-const int PROCESSORS = thread::hardware_concurrency();
+int PROCESSORS;
 
 vector<int> compute_node_memo(int node, int size, int delta, const vector<vector<int>> &c) {
     vector<int> memo(1 << size);
@@ -92,8 +92,9 @@ void compute_layer_range_dp(int N, int layer, int a, int b) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     int M, N, E;
+    PROCESSORS = atoi(argv[1]);
     
     cin >> M >> N >> E;
 

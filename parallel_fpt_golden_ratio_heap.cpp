@@ -14,9 +14,9 @@ using namespace std;
 
 const int INF = 2e9;
 const int N_MAX = 17000;
-int PROCESSORS;
 using u64 = uint_fast64_t;
 mutex sol_mutex;
+int PROCESSORS;
 vector<vector<int>> c;
 struct DynamicBitset {
     vector<u64> data;
@@ -137,6 +137,9 @@ void search_sol(Instance*, int);
 struct search_call {
     Instance *I;
     int K;
+    bool operator<(const search_call &oth) const {
+        return I->crossings > oth.I->crossings;
+    }
 };
 
 class ThreadPool { 
@@ -171,6 +174,7 @@ public:
                             return;
                         }
                     }
+
                 } 
             }); 
         }
@@ -195,7 +199,7 @@ private:
     
     vector<thread> threads; 
   
-    stack<search_call> S; 
+    priority_queue<search_call> S; 
     condition_variable cv;
   
     mutex stack_mutex; 
@@ -233,7 +237,7 @@ vector<int> solve(int K, int N, Instance I) {
 }
 
 int main(int argc, char *argv[]) {
-    PROCESSORS = atoi(argv[1]);
+
     int M, N, E;
     cin >> M >> N >> E;
     vector<vector<int>> G(N);
@@ -268,7 +272,6 @@ int main(int argc, char *argv[]) {
     int K = 1;
     vector<int> x;
     while(x.empty()) {
-        cerr << K << " " << "\n";
         x = solve(K, N, I);
         K *= 2;
     }

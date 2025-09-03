@@ -2,12 +2,13 @@
 #include <iostream>
 #include <cassert>
 #include <bitset>
+#include <functional>
 
 using namespace std;
 
 const int INF = 2e9;
 const int N_MAX = 17000;
-using u64 = uint_fast64_t;
+using u64 = unsigned long long;
 
 vector<vector<int>> c;
 struct DynamicBitset {
@@ -213,6 +214,7 @@ int main() {
     int K = 1;
     vector<int> x;
     while(x.empty()) {
+        cerr << K << "\n";
         x = solve(K, N, I);
         K *= 2;
     }

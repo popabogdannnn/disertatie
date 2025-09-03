@@ -8,10 +8,9 @@
 #include <thread>
 
 using namespace std;
-
-const int PROCESSORS = thread::hardware_concurrency();
+int PROCESSORS;
 const int INF = 2e9;
-const int DP_MAX = 30;
+const int DP_MAX = 31;
 vector <int> dp;
 vector <vector<int>> comb;
  vector<vector<int>> memo[] = {
@@ -112,6 +111,7 @@ void compute_layer_range_dp(int N, int layer, int a, int b) {
 vector <int> compute_dp(set<int>active, vector<vector<int>>&c, vector<int>&clt, int until) {
     vector<int> nodes(active.begin(), active.end());
     int N = nodes.size();
+    cerr << N << "\n";
     assert(N <= DP_MAX);
     dp.resize(1 << N);
 
@@ -229,14 +229,14 @@ vector<int> solve(int K, int N, int M, int E, vector<vector<int>>&G, vector<vect
     return ret;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    PROCESSORS = atoi(argv[1]);
     int M, N, E;
     cin >> M >> N >> E;
     vector<int> x;
     vector<vector<int>> G(N);
 
     comb = compute_comb(DP_MAX + 5);
-
     while(E--) {
         int x, y;
         cin >> x >> y;
